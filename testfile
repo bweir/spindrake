@@ -1,5 +1,7 @@
 obj
 alias : "chickenbacon"
+
+    pub main
     alias[chicken] : "chickenbacon"
     alias[%%99] : "chickenbacon"
 alias : "chicken//bacon"

@@ -44,6 +44,8 @@ QString filename;
 %token <num>    HEX             "hexadecimal number"
 %token <num>    DEC             "decimal number"
 
+%type <num>     expr, primary_expr, number
+
 // operators
 
 %token  NL      "newline"
@@ -76,17 +78,30 @@ block           : con con_lines  { printf("\n"); }
                 ;
 
 
-con_lines       : ;
 var_lines       : ;
 pub_lines       : ;
 pri_lines       : ;
 dat_lines       : ;
 
 con             : CON NL    { printf("CON\n"); }
+con_lines       : con_line
+                | con_lines con_line
+
+con_line        : IDENT '=' expr NL
+                {
+                    printf("%s = %u\n", qPrintable(*$1), $3);
+                }
+                | literal ',' con_array NL
+
+con_array       : con_array_item
+                | con_array_item ',' con_array
+
+con_array_item  : ident
+                | ident array_index
+
+
 var             : VAR NL    { printf("VAR\n"); }
 
-
-// OBJ blocks
 
 
 obj             : OBJ NL    { printf("OBJ\n"); }
@@ -94,11 +109,11 @@ obj             : OBJ NL    { printf("OBJ\n"); }
 obj_lines       : obj_line
                 | obj_lines obj_line
 
-obj_line        : IDENT ':' OBJSTRING NL
+obj_line        : ident ':' OBJSTRING NL
                 {
                     printf("%s : \"%s\"\n", qPrintable(*$1), qPrintable(*$3));
                 }
-                | IDENT array_index ':' OBJSTRING NL
+                | ident array_index ':' OBJSTRING NL
                 {
                     printf("%s : \"%s\"\n", qPrintable(*$1), qPrintable(*$4));
                 }
@@ -111,13 +126,11 @@ dat             : DAT NL    { printf("DAT\n"); }
 
 literal         : '#' expr
 array_index     : '[' expr ']'
-paren_expr      : '(' expr ')'
-
 
 expr            : primary_expr
+                | '(' expr ')'
 
 primary_expr    : number
-                | ident
 
 number          : dec
 	            | bin
@@ -127,7 +140,7 @@ number          : dec
 
 
 
-dec             : DEC   { printf("%i", $1); }
+dec             : DEC   { printf("%i ", $1); }
 bin             : BIN   { printf("BIN %%%s", qPrintable(QString::number($1, 2))); }
 quat            : QUAT  { printf("QUAT %%%%%s", qPrintable(QString::number($1, 4))); }
 hex             : HEX   { printf("HEX $%s", qPrintable(QString::number($1, 16))); }

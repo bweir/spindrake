@@ -61,12 +61,14 @@ EQUALITY    "=="|"<>"
 RELATIONAL  ">"|">="|"<"|"<="
 SHIFT       ">>"|"<<"|"~>"|"->"|"<-"|"><"
 ARITHMETIC  "+"|"-"|"*"|"/"|"//"
-ASSIGN      "="|":="|"+="|"-="|"*="|"/="|"//="|"&="|"|="|"^="
+ASSIGN      ":="|"+="|"-="|"*="|"/="|"//="|"&="|"|="|"^="
 UNARY       "--"|"++"|"?"|"@"|"@@"|"^^"|"||"|"!"|"~~"|"~"
 
 OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{BOOLEAN}|{ASSIGN}
 
 %%
+
+^[ ]*\n     /* Ignore blank lines. */
 
 [ \t]* {
     if (startingline && yylloc->first_column == 1)
@@ -75,8 +77,6 @@ OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{BOOL
     }
     startingline  = false;
 }
-
-^[ ]*\n     /* Ignore blank lines. */
 
 
             /* TOKENS */
