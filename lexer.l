@@ -1,16 +1,47 @@
 %option noyywrap
 %option case-insensitive
 %option yylineno
+%option bison-locations
 
-%x INSTRING INESCAPE INLINECOMMENT INMULTICOMMENT INDOCLINECOMMENT INDOCMULTICOMMENT
+%x INSTRING INOBJSTRING INESCAPE INLINECOMMENT INMULTICOMMENT INDOCLINECOMMENT INDOCMULTICOMMENT
 %x INDEC INHEX INQUAT INBIN
 
 %{
 
 #include "types.h"
 #include "parser.hpp"
+#include "config.h"
+
+int colnum = 1;
+
+#define YY_USER_ACTION {\
+    yylloc->line += yytext;         \
+    yylloc->first_line = yylineno;  \
+    yylloc->first_column = colnum;  \
+    colnum = colnum + yyleng;       \
+    yylloc->last_column = colnum;   \
+    yylloc->last_line = yylineno;   \
+}
+
+extern int yyerror (YYLTYPE *locp, char const *msg);
+
+#define ERROR(msg) yyerror(yylloc, msg)
 
 void print(const char * s);
+
+enum Block {
+    NoBlock,
+    ConBlock,
+    VarBlock,
+    ObjBlock,
+    PubBlock,
+    PriBlock,
+    DatBlock,
+    AsmBlock
+};
+
+Block block = NoBlock;
+bool startingline = true;
 
 QString str_collector;
 
@@ -37,6 +68,17 @@ OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{BOOL
 
 %%
 
+[ \t]* {
+    if (startingline && yylloc->first_column == 1)
+    {
+        printf("%s", qPrintable(QString(yyleng, ' ')));
+    }
+    startingline  = false;
+}
+
+^[ ]*\n     /* Ignore blank lines. */
+
+
             /* TOKENS */
 
 <INITIAL>"$"        {   BEGIN(INHEX);   }
@@ -44,37 +86,37 @@ OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{BOOL
 <INITIAL>"%%"       {   BEGIN(INQUAT);  }
 
 <INBIN>{BIN} {
-    yylval.num = QByteArray(yytext).toUInt(0, 2);
+    yylval->num = QByteArray(yytext).toUInt(0, 2);
     BEGIN(INITIAL);
     return BIN;
 }
 <INBIN>.    {
-    printf( "Not a valid binary number");
+    ERROR("Not a valid binary number (0-1)");
     return -1;
 }
 
 <INQUAT>{QUAT} {
-    yylval.num = QByteArray(yytext).toUInt(0, 4);
+    yylval->num = QByteArray(yytext).toUInt(0, 4);
     BEGIN(INITIAL);
     return QUAT;
 }
 <INQUAT>.    {
-    printf( "Not a valid quaternary number");
+    ERROR("Not a valid quaternary number (0-3)");
     return -1;
 }
 
 <INHEX>{HEX} {
-    yylval.num = QByteArray(yytext).toUInt(0, 16);
+    yylval->num = QByteArray(yytext).toUInt(0, 16);
     BEGIN(INITIAL);
     return HEX;
 }
 <INHEX>.    {
-    printf( "Not a valid hexadecimal number");
+    ERROR("Not a valid hexadecimal number (0-9a-f)");
     return -1;
 }
 
 {DEC} {
-    yylval.num = QString(yytext).toInt();
+    yylval->num = QString(yytext).toInt();
     return DEC;
 }
 
@@ -83,10 +125,13 @@ OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{BOOL
     return 1;
 }
 
-con|var|obj|pub|pri|dat|asm {
-    print("BLOCK");
-    return 1;
-}
+con     {   block = ConBlock;   return CON; }
+var     {   block = VarBlock;   return VAR; }
+obj     {   block = ObjBlock;   return OBJ; }
+pub     {   block = PubBlock;   return PUB; }
+pri     {   block = PriBlock;   return PRI; }
+dat     {   block = DatBlock;   return DAT; }
+asm     {   block = AsmBlock;   return ASM; }
 
 if|then|begin|end|procedure|function {
     print("KEYWORD");
@@ -94,7 +139,7 @@ if|then|begin|end|procedure|function {
 }
 
 {IDENT}     {
-    yylval.str = new QString(yytext);
+    yylval->str = new QString(yytext);
     return IDENT;
 }
 
@@ -116,24 +161,40 @@ if|then|begin|end|procedure|function {
 <INLINECOMMENT,INMULTICOMMENT,INDOCLINECOMMENT,INDOCMULTICOMMENT>.
 
 <INITIAL>["]        {   
-    str_collector = "";
-    BEGIN(INSTRING);
+    if (block == ObjBlock)
+    {
+        BEGIN(INOBJSTRING);
+    }
+    else
+    {
+        str_collector = "";
+        BEGIN(INSTRING);
+    }
 }
-<INSTRING>["]       {
-    yylval.str = new QString(str_collector);
+
+<INOBJSTRING>["] {
+    BEGIN(INITIAL);
+}
+
+<INOBJSTRING>[_a-zA-Z0-9.\- ]+ {
+    yylval->str = new QString(yytext);
+    return OBJSTRING;
+}
+
+<INSTRING>["] {
+    yylval->str = new QString(str_collector);
     BEGIN(INITIAL);
     return STRING;
 }
-<INSTRING>[^"]      {
+<INSTRING>[^"] {
     str_collector += yytext;
 }
 
-[ \t]+          /* eat up whitespace */
-
-^[ ]*\n       {/* Ignore blank lines. */}
-
-
-\n  {
+\n {
+    colnum = 1;
+    yylloc->line = "";
+    startingline = true;
+    return NL;
 }
 
 .   return *yytext;

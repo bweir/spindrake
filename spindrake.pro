@@ -7,7 +7,9 @@ TEMPLATE = app
 TARGET = spindrake
 INCLUDEPATH += .
 
-HEADERS += types.h
+HEADERS += \
+    types.h \
+    config.h \
 
 FLEXSOURCES += lexer.l
 BISONSOURCES += parser.y
