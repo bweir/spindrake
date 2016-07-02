@@ -55,7 +55,6 @@ FLOAT       {DEC}"."{DEC}
 
 IDENT       [a-z][a-z0-9]*
 
-BOOLEAN     and|or|xor|not
 BITWISE     "&"|"|"|"^"
 EQUALITY    "=="|"<>"
 RELATIONAL  ">"|">="|"<"|"<="
@@ -64,7 +63,7 @@ ARITHMETIC  "+"|"-"|"*"|"/"|"//"
 ASSIGN      ":="|"+="|"-="|"*="|"/="|"//="|"&="|"|="|"^="
 UNARY       "--"|"++"|"?"|"@"|"@@"|"^^"|"||"|"!"|"~~"|"~"
 
-OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{BOOLEAN}|{ASSIGN}
+OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{ASSIGN}
 
 %%
 
@@ -78,76 +77,6 @@ OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{BOOL
     startingline  = false;
 }
 
-
-            /* TOKENS */
-
-<INITIAL>"$"        {   BEGIN(INHEX);   }
-<INITIAL>"%"        {   BEGIN(INBIN);   }
-<INITIAL>"%%"       {   BEGIN(INQUAT);  }
-
-<INBIN>{BIN} {
-    yylval->num = QByteArray(yytext).toUInt(0, 2);
-    BEGIN(INITIAL);
-    return BIN;
-}
-<INBIN>.    {
-    ERROR("Not a valid binary number (0-1)");
-    return -1;
-}
-
-<INQUAT>{QUAT} {
-    yylval->num = QByteArray(yytext).toUInt(0, 4);
-    BEGIN(INITIAL);
-    return QUAT;
-}
-<INQUAT>.    {
-    ERROR("Not a valid quaternary number (0-3)");
-    return -1;
-}
-
-<INHEX>{HEX} {
-    yylval->num = QByteArray(yytext).toUInt(0, 16);
-    BEGIN(INITIAL);
-    return HEX;
-}
-<INHEX>.    {
-    ERROR("Not a valid hexadecimal number (0-9a-f)");
-    return -1;
-}
-
-{DEC} {
-    yylval->num = QString(yytext).toInt();
-    return DEC;
-}
-
-{FLOAT} {
-    print("FLOAT");
-    return 1;
-}
-
-con     {   block = ConBlock;   return CON; }
-var     {   block = VarBlock;   return VAR; }
-obj     {   block = ObjBlock;   return OBJ; }
-pub     {   block = PubBlock;   return PUB; }
-pri     {   block = PriBlock;   return PRI; }
-dat     {   block = DatBlock;   return DAT; }
-asm     {   block = AsmBlock;   return ASM; }
-
-if|then|begin|end|procedure|function {
-    print("KEYWORD");
-    return 1;
-}
-
-{IDENT}     {
-    yylval->str = new QString(yytext);
-    return IDENT;
-}
-
-{OP} {
-    print("OP");
-    return 1;
-}
-
 <INITIAL>"'"        {   BEGIN(INLINECOMMENT);       }
 <INITIAL>"''"       {   BEGIN(INMULTICOMMENT);      }
 <INITIAL>"{"        {   BEGIN(INDOCLINECOMMENT);    }
@@ -155,10 +84,17 @@ if|then|begin|end|procedure|function {
 
 <INLINECOMMENT>"\n"     {   BEGIN(INITIAL); }
 <INMULTICOMMENT>"\n"    {   BEGIN(INITIAL); }
-<INDOCLINECOMMENT>"}}"  {   BEGIN(INITIAL); }
+<INDOCLINECOMMENT>"}"   {   BEGIN(INITIAL); }
 <INDOCMULTICOMMENT>"}}" {   BEGIN(INITIAL); }
 
 <INLINECOMMENT,INMULTICOMMENT,INDOCLINECOMMENT,INDOCMULTICOMMENT>.
+
+<INITIAL,INLINECOMMENT,INMULTICOMMENT>\n {
+    colnum = 1;
+    yylloc->line = "";
+    startingline = true;
+    return NL;
+}
 
 <INITIAL>["]        {   
     if (block == ObjBlock)
@@ -186,18 +122,137 @@ if|then|begin|end|procedure|function {
     BEGIN(INITIAL);
     return STRING;
 }
+
 <INSTRING>[^"] {
     str_collector += yytext;
 }
 
-\n {
-    colnum = 1;
-    yylloc->line = "";
-    startingline = true;
-    return NL;
+            /* TOKENS */
+
+<INITIAL>"$"  { BEGIN(INHEX);  }
+<INITIAL>"%"  { BEGIN(INBIN);  }
+<INITIAL>"%%" { BEGIN(INQUAT); }
+
+<INBIN>{BIN} {
+    yylval->num = QByteArray(yytext).toUInt(0, 2);
+    BEGIN(INITIAL);
+    return BINARY;
+}
+<INBIN>.    {
+    ERROR("Not a valid binary number (0-1)");
+    return -1;
 }
 
-.   return *yytext;
+<INQUAT>{QUAT} {
+    yylval->num = QByteArray(yytext).toUInt(0, 4);
+    BEGIN(INITIAL);
+    return QUATERNARY;
+}
+<INQUAT>.    {
+    ERROR("Not a valid quaternary number (0-3)");
+    return -1;
+}
+
+<INHEX>{HEX} {
+    yylval->num = QByteArray(yytext).toUInt(0, 16);
+    BEGIN(INITIAL);
+    return HEXADECIMAL;
+}
+<INHEX>.    {
+    ERROR("Not a valid hexadecimal number (0-9a-f)");
+    return -1;
+}
+
+{DEC} {
+    yylval->num = QString(yytext).toInt();
+    return DECIMAL;
+}
+
+{FLOAT} {
+    yylval->fl = QString(yytext).toFloat();
+    return FLOAT;
+}
+
+"+="    return ADD_ASSIGN;
+"-="    return SUB_ASSIGN;
+"*="    return MUL_ASSIGN;
+"//="   return MOD_ASSIGN;
+"/="    return DIV_ASSIGN;
+"<<="   return SHL_ASSIGN;
+">>="   return SHR_ASSIGN;
+"~>="   return SAR_ASSIGN;
+"<-="   return ROL_ASSIGN;
+"->="   return ROR_ASSIGN;
+"><="   return REV_ASSIGN;
+"&="    return AND_ASSIGN;
+"|="    return OR_ASSIGN;
+"^="    return XOR_ASSIGN;
+
+"--"    return DEC;
+"++"    return INC;
+"~~"    return SET;
+"~"     return CLEAR;
+
+"<<"    return SHL;
+">>"    return SHR;
+"~>"    return SAR;
+"<-"    return ROL;
+"->"    return ROR;
+"><"    return REV;
+
+"<="    return LESSEQ;
+">="    return GREATEREQ;
+"=="    return EQ;
+"<>"    return NEQ;
+"<"     return LESS;
+">"     return GREATER;
+
+"+"     return PLUS;
+"-"     return MINUS;
+"*"     return MUL;
+"//"    return MOD;
+"/"     return DIV;
+
+"["     return BRAC_L;
+"]"     return BRAC_R;
+"("     return PAREN_L;
+")"     return PAREN_R;
+
+"@"     return ADDR;
+"#"     return LITERAL;
+":"     return ALIAS;
+"="     return ASSIGN;
+","     return COMMA;
+
+"!"     return BW_NOT;
+"&"     return BW_AND;
+"|"     return BW_OR;
+"^"     return BW_XOR;
+
+not     return BOOL_NOT;
+and     return BOOL_AND;
+or      return BOOL_OR;
+
+byte    return BYTE;
+word    return WORD;
+long    return LONG;
+
+con     { block = ConBlock; return CON; }
+var     { block = VarBlock; return VAR; }
+obj     { block = ObjBlock; return OBJ; }
+pub     { block = PubBlock; return PUB; }
+pri     { block = PriBlock; return PRI; }
+dat     { block = DatBlock; return DAT; }
+asm     { block = AsmBlock; return ASM; }
+
+{IDENT}     {
+    yylval->str = new QString(yytext);
+    return IDENT;
+}
+
+. {
+    ERROR("unrecognized character!");
+}
 
 %%
 
