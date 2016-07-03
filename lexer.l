@@ -9,8 +9,8 @@
 
 %{
 
-#include "tree.h"
 #include "types.h"
+#include "tree.h"
 #include "parser.hpp"
 #include "config.h"
 
@@ -30,17 +30,6 @@ extern int yyerror (YYLTYPE *locp, char const *msg);
 #define ERROR(msg) yyerror(yylloc, msg)
 
 void print(const char * s);
-
-enum Block {
-    NoBlock,
-    ConBlock,
-    VarBlock,
-    ObjBlock,
-    PubBlock,
-    PriBlock,
-    DatBlock,
-    AsmBlock
-};
 
 Block block = NoBlock;
 bool startingline = true;

@@ -6,6 +6,8 @@
 
 #include <stdio.h>
 
+#include "types.h"
+
 class Expr
 {
 public:
@@ -96,6 +98,133 @@ public:
     }
 };
 
+
+class LiteralExpr : public Expr
+{
+protected:
+    Expr * _val;
+
+public:
+    virtual ~LiteralExpr() {}
+    LiteralExpr(Expr * val)
+    {
+        _val = val;
+    }
+
+    void print()
+    {
+        printf("#");
+        _val->print();
+    }
+};
+
+
+class DataTypeExpr : public Expr
+{
+protected:
+    DataType _val;
+
+public:
+    virtual ~DataTypeExpr() {}
+    DataTypeExpr(DataType val)
+    {
+        _val = val;
+    }
+
+    void print()
+    {
+        printf("%s ",qPrintable(value()));
+    }
+
+    QString value()
+    {
+        switch (_val)
+        {
+            case DataByte:  return "byte"; ;;
+            case DataWord:  return "word"; ;;
+            case DataLong:  return "long"; ;;
+            default:        return ""; ;;
+        }
+    }
+};
+
+
+class BlockExpr : public Expr
+{
+protected:
+    Block _block;
+    QList<Expr *> * _lines;
+
+public:
+    virtual ~BlockExpr() {}
+    BlockExpr(Block block, QList<Expr *> * lines)
+    {
+        _block = block;
+        _lines = lines;
+    }
+
+    void print()
+    {
+        QString s;
+        switch (_block)
+        {
+            case NoBlock:  break; ;;
+            case ConBlock: s = "CON"; break; ;;
+            case VarBlock: s = "VAR"; break; ;;
+            case ObjBlock: s = "OBJ"; break; ;;
+            case PubBlock: s = "PUB"; break; ;;
+            case PriBlock: s = "PRI"; break; ;;
+            case DatBlock: s = "DAT"; break; ;;
+            case AsmBlock: s = "ASM"; break; ;;
+        }
+        printf("%s\n",qPrintable(s));
+
+        foreach(Expr * l, *_lines)
+        {
+            l->print();
+        }
+
+    }
+};
+
+
+class DatLineExpr : public Expr
+{
+protected:
+    IdentExpr * _symbol;
+    DataTypeExpr * _align;
+
+    QList<Expr *> * _items;
+
+public:
+    virtual ~DatLineExpr() {}
+
+    DatLineExpr(Expr * symbol, 
+                Expr * align,
+                QList<Expr *> * items)
+    {
+        _symbol = (IdentExpr *) symbol;
+        _align = (DataTypeExpr *) align;
+        _items = items;
+    }
+
+    void print()
+    {
+        if (!(_symbol->value().isEmpty()))
+        {
+            printf("\n%s\n", qPrintable(_symbol->value()));
+        }
+        printf("%-8s", qPrintable(_align->value()));
+
+        for (int i = 0; i < _items->size(); i++)
+        {
+            (*_items)[i]->print();
+            if (i < _items->size()-1)
+                printf(", ");
+        }
+        printf("\n");
+    }
+};
 
 
 class UnaryExpr : public Expr
@@ -188,295 +317,3 @@ public:
     }
 };
 
-
-
-
-/*
-class DecimalExpr : public Expr
-{
-public:
-    DecimalExpr(Match m)
-        : Expr(m, "DEC")
-    {
-        _value = m.text().toInt();
-    }
-
-    void print()
-    {
-        Expr::print(QString::number(_value.toInt()));
-    }
-};
-
-
-class FloatExpr : public Expr
-{
-
-public:
-    FloatExpr(Match m)
-        : Expr(m, "FLOAT")
-    {
-        _value = m.text().toFloat();
-    }
-
-    void print()
-    {
-        Expr::print(QString::number(_value.toFloat()));
-    }
-};
-
-
-
-class HexadecimalExpr : public Expr
-{
-public:
-    HexadecimalExpr(Match m)
-        : Expr(m, "HEX")
-    {
-        QString s = m.text();
-        s = s.replace("_","");
-        if (s.size() > 8)
-            throw Error("Hexadecimal numbers may not exceed 8 characters!");
-
-        QByteArray ba = s.toLocal8Bit();
-        bool ok;
-
-        _value = ba.toUInt(&ok, 16);
-
-        if (!ok)
-            throw Error("Failed to read hexadecimal number!");
-    }
-
-    void print()
-    {
-        Expr::print(QString::number(_value.toUInt(), 16));
-    }
-};
-
-
-class BinaryExpr : public Expr
-{
-public:
-    BinaryExpr(Match m)
-        : Expr(m, "BIN")
-    {
-        QString s = m.text();
-        s = s.replace("_","");
-        if (s.size() > 32)
-            throw Error("Binary numbers may not exceed 32 characters.");
-
-        QByteArray ba = s.toLocal8Bit();
-        bool ok;
-
-        _value = ba.toUInt(&ok, 2);
-
-        if (!ok)
-            throw Error("Failed to read binary number!");
-    }
-
-    void print()
-    {
-        QString s = QString::number(_value.toUInt(), 2);
-        printf("%s '", qPrintable(name()));
-        for (int i = 0; i < s.size(); i++)
-        {
-            printf("%s",qPrintable(s[i]));
-            if (i < s.size()-1 && i % 8 == 7)
-                printf("_");
-        }
-        printf("'");
-        fflush(stdout);
-    }
-};
-
-
-
-class QuaternaryExpr : public Expr
-{
-public:
-    QuaternaryExpr(Match m)
-        : Expr(m, "QUAT")
-    {
-        QString s = m.text();
-        s = s.replace("_","");
-        if (s.size() > 32)
-            throw Error("Quaternary numbers may not exceed 16 characters!");
-
-        QByteArray ba = s.toLocal8Bit();
-        bool ok;
-
-        _value = ba.toUInt(&ok, 4);
-
-        if (!ok)
-            throw Error("Failed to read quaternary number!");
-    }
-
-    void print()
-    {
-        Expr::print(QString::number(_value.toUInt(), 4));
-    }
-};
-
-
-class IdentifierExpr : public Expr
-{
-public:
-    IdentifierExpr(Match m)
-        : Expr(m, "IDENT")
-    {
-        _value = m.text();
-    }
-
-    void print()
-    {
-        Expr::print(_value.toString());
-    }
-};
-
-class BinaryOpExpr : public Expr
-{
-    QString _op;
-    Expr * _lhs;
-    Expr * _rhs;
-
-public:
-    BinaryOpExpr(Expr * lhs, Match op, Expr * rhs)
-        : Expr(op, "OP")
-    {
-        _lhs = lhs;
-        _rhs = rhs;
-        _op = op.text();
-    }
-
-    void print()
-    {
-        _lhs->print();
-        printf(" %s ", qPrintable(_op));
-        _rhs->print();
-    }
-};
-
-
-class ExpressionExpr : public Expr
-{
-    Expr * _term;
-    QList<QString> _ops;
-    QList<Expr *> _terms;
-
-public:
-    ExpressionExpr(Expr * term)
-        : Expr(Match(), "EXPR")
-    {
-        _term = term;
-    }
-
-    void add(QString op, Expr * term)
-    {
-        _ops.append(op);
-        _terms.append(term);
-    }
-
-    void print()
-    {
-        _term->print();
-        for (int i = 0; i < _terms.size(); i++)
-        {
-            printf(" %s ",qPrintable(_ops[i]));
-            _terms[i]->print();
-        }
-    }
-
-    QVariant value()
-    {
-
-        if (_terms.isEmpty())
-            return _term->value();
-
-        quint32 v1 = _term->value().toInt();
-        printf("%i", v1);
-
-        for (int i = 0; i < _terms.size(); i++)
-        {
-            quint32 v2 = _terms[i]->value().toInt();
-            printf(" %s %i", qPrintable(_ops[i]), v2);
-
-            if (_ops[i] == "\\+")
-                v1 = v1 + v2;
-            else if (_ops[i] == "-")
-                v1 = v1 - v2;
-            else if (_ops[i] == "\\*")
-                v1 = v1 * v2;
-            else if (_ops[i] == "/")
-                v1 = v1 / v2;
-            else if (_ops[i] == "//")
-                v1 = v1 % v2;
-
-            // shift operators
-            else if (_ops[i] == ">>")
-                v1 = v1 >> v2;
-            else if (_ops[i] == "~>")
-                v1 = ((qint32) v1) >> v2;
-            else if (_ops[i] == "<<")
-                v1 = v1 << v2;
-
-            // bitwise operators
-            else if (_ops[i] == "&")
-                v1 = v1 & v2;
-            else if (_ops[i] == "\\|")
-                v1 = v1 | v2;
-            else if (_ops[i] == "\\^")
-                v1 = v1 ^ v2;
-
-            // relational operators
-            else if (_ops[i] == ">")
-                v1 = (v1 > v2 ? -1 : 0);
-            else if (_ops[i] == "<")
-                v1 = (v1 < v2 ? -1 : 0);
-            else if (_ops[i] == ">=")
-                v1 = (v1 >= v2 ? -1 : 0);
-            else if (_ops[i] == "<=")
-                v1 = (v1 <= v2 ? -1 : 0);
-
-            // equality operators
-            else if (_ops[i] == "==")
-                v1 = (v1 == v2 ? -1 : 0);
-            else if (_ops[i] == "!=")
-                v1 = (v1 != v2 ? -1 : 0);
-
-
-
-        }
-
-        return QVariant(v1);
-    }
-};
-
-
-
-
-class FactorExpr : public Expr
-{
-    Expr * _expr;
-
-public:
-    FactorExpr(Expr * expr)
-        : Expr(Match(), "FACTOR")
-    {
-        _expr = expr;
-    }
-
-    void print()
-    {
-        printf("(");
-        _expr->print();
-        printf(")");
-        fflush(stdout);
-    }
-
-    QVariant value()
-    {
-        return _expr->value();
-    }
-};
-
-
-*/

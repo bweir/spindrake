@@ -9,10 +9,11 @@ Expr * root = NULL;
 %}
 
 %union {
-    quint32     num;
-    float       fl;
-    const char  *str;
-    Expr        *exp;
+    quint32         num;
+    float           fl;
+    const char      *str;
+    Expr            *exp;
+    QList<Expr *>   *list;
 }
 
 %{
@@ -66,6 +67,15 @@ QString filename;
 %type <exp>     literal address factor
 %type <exp>     array_index
 %type <exp>     ident bin quat dec hex number
+%type <exp>     data_type
+
+%type <exp>     dat 
+%type <list>    dat_entry
+%type <list>    dat_lines
+%type <exp>     dat_line
+%type <list>    dat_items
+%type <exp>     dat_item
+%type <exp>     dat_symbol dat_align dat_size
 
 // operators
 
@@ -157,7 +167,7 @@ blocklist       : block
 block           : con con_lines  { printf("\n"); }
                 | var var_lines  { printf("\n"); }
                 | obj obj_lines  { printf("\n"); }
-                | dat dat_lines  { printf("\n"); }
+                | dat { printf("\n"); }
                 ;
 
 // con blocks
@@ -237,40 +247,43 @@ pri_lines       :
 // dat blocks
 // -----------------------------------------------------
 
-dat             : DAT NL    { printf("DAT\n"); }
+dat             : DAT NL dat_lines                              { $$ = new BlockExpr(DatBlock, $3); $$->print(); }
+                
+dat_lines       : dat_lines dat_line                            { $$ = $1; $1->append($2); }
+                |                                               { $$ = new QList<Expr *>(); }
                 ;
 
-dat_lines       : dat_line
-                | dat_lines dat_line
+dat_line        : dat_align dat_entry NL                        { $$ = new DatLineExpr(new IdentExpr(""), $1, $2); }
+                | ident dat_align dat_entry NL                  { $$ = new DatLineExpr($1, $2, $3); }
+                | ident NL dat_align dat_entry NL               { $$ = new DatLineExpr($1, $3, $4); }
                 ;
 
-dat_line        : ident NL
-                | dat_entry NL
-                | ident dat_entry NL
+dat_align       : data_type
                 ;
 
-dat_entry       : data_type data_items
-                | data_type data_type data_items
+dat_entry       : dat_item dat_items                            { $2->prepend($1); $$ = $2; }
                 ;
 
-data_items      : data_item
-                | data_items COMMA data_item
+dat_items       : dat_items COMMA dat_item                      { $$ = $1; $1->append($3); }
+                |                                               { $$ = new QList<Expr *>(); }
                 ;
 
-data_item       : expr
+dat_item        : data_type expr array_index
+                | data_type expr 
+                | expr array_index
+                | expr
                 ;
 
 // expression parsing
 // -----------------------------------------------------
 
-literal         : LITERAL expr
+literal         : LITERAL expr                          { $$ = new LiteralExpr($2); }
                 ;
 
-array_index     : BRAC_L expr BRAC_R  { $$ = new WrapExpr("[", $2, "]"); }
+array_index     : BRAC_L expr BRAC_R                    { $$ = new WrapExpr("[", $2, "]"); }
                 ;
 
 expr            : assign_expr
-                    { $$ = $1; $1->print(); }
                 ;
 
 assign_expr     : bool_or_expr
@@ -372,9 +385,9 @@ address         : ADDR ident            { $$ = new AddressExpr($2); }
 
 // -----------------------------------------------------
 
-data_type       : BYTE
-                | WORD
-                | LONG
+data_type       : BYTE { $$ = new DataTypeExpr(DataByte); }
+                | WORD { $$ = new DataTypeExpr(DataWord); }
+                | LONG { $$ = new DataTypeExpr(DataLong); }
                 ;
 
 number          : dec
