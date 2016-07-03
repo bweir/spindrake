@@ -3,17 +3,20 @@
 #include "types.h"
 #include "stdio.h"
 #include "config.h"
+#include "tree.h"
 
+Expr * root = NULL;
 %}
 
 %union {
     quint32     num;
     float       fl;
-    QString     *str;
+    const char  *str;
+    Expr        *exp;
 }
 
 %{
-int  yylex (YYSTYPE*, YYLTYPE*);
+int yylex (YYSTYPE*, YYLTYPE*);
 int yyerror (YYLTYPE *locp, char const *msg);
 void print(const char * s);
 
@@ -46,11 +49,23 @@ QString filename;
 %token <num>    DECIMAL         "decimal number"
 %token <fl>     FLOAT
 
-%type <num>     expr primary_expr number
-%type <num>     add_expr mult_expr factor array_index
+%type <exp>     expr primary_expr 
 
-%type <str>     ident
-%type <num>     bin quat dec hex
+%type <exp>     assign_expr
+%type <exp>     bool_or_expr
+%type <exp>     bool_and_expr
+%type <exp>     bool_not_expr
+%type <exp>     relation_expr
+%type <exp>     add_expr
+%type <exp>     mult_expr
+%type <exp>     bw_or_expr
+%type <exp>     bw_and_expr
+%type <exp>     shift_expr
+%type <exp>     unary_expr
+%type <exp>     unary2_expr
+%type <exp>     literal address factor
+%type <exp>     array_index
+%type <exp>     ident bin quat dec hex number
 
 // operators
 
@@ -157,7 +172,7 @@ con_lines       : con_line
 
 con_line        : IDENT ASSIGN expr NL
                 {
-                    printf("%s = %u\n", qPrintable(*$1), $3);
+                    //printf("%s = %u\n", qPrintable(*$1), $3);
                 }
                 | literal COMMA con_array NL
                 ;
@@ -196,11 +211,11 @@ obj_lines       : obj_line
 
 obj_line        : ident ALIAS OBJSTRING NL
                 {
-                    printf("%s : \"%s\"\n", qPrintable(*$1), qPrintable(*$3));
+                    //printf("%s : \"%s\"\n", qPrintable(*$1), qPrintable(*$3));
                 }
                 | ident array_index ALIAS OBJSTRING NL
                 {
-                    printf("%s : \"%s\"\n", qPrintable(*$1), qPrintable(*$4));
+                    //printf("%s : \"%s\"\n", qPrintable(*$1), qPrintable(*$4));
                 }
                 ;
 
@@ -251,108 +266,109 @@ data_item       : expr
 literal         : LITERAL expr
                 ;
 
-array_index     : BRAC_L expr BRAC_R  { $$ = $2; }
+array_index     : BRAC_L expr BRAC_R  { $$ = new WrapExpr("[", $2, "]"); }
                 ;
 
 expr            : assign_expr
+                    { $$ = $1; $1->print(); }
                 ;
 
 assign_expr     : bool_or_expr
-                | assign_expr ASSIGN     bool_or_expr
-                | assign_expr ADD_ASSIGN bool_or_expr
-                | assign_expr SUB_ASSIGN bool_or_expr
-                | assign_expr MUL_ASSIGN bool_or_expr
-                | assign_expr MOD_ASSIGN bool_or_expr
-                | assign_expr DIV_ASSIGN bool_or_expr
-                | assign_expr SHL_ASSIGN bool_or_expr
-                | assign_expr SHR_ASSIGN bool_or_expr
-                | assign_expr SAR_ASSIGN bool_or_expr
-                | assign_expr ROL_ASSIGN bool_or_expr
-                | assign_expr ROR_ASSIGN bool_or_expr
-                | assign_expr REV_ASSIGN bool_or_expr
-                | assign_expr AND_ASSIGN bool_or_expr
-                | assign_expr OR_ASSIGN  bool_or_expr
-                | assign_expr XOR_ASSIGN bool_or_expr
+                | assign_expr ASSIGN     bool_or_expr   { $$ = new BinaryExpr($1, "=",   $3); }
+                | assign_expr ADD_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "+=",  $3); }
+                | assign_expr SUB_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "-=",  $3); }
+                | assign_expr MUL_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "*=",  $3); }
+                | assign_expr MOD_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "//=", $3); }
+                | assign_expr DIV_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "/=",  $3); }
+                | assign_expr SHL_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "<<=", $3); }
+                | assign_expr SHR_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, ">>=", $3); }
+                | assign_expr SAR_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "~>=", $3); }
+                | assign_expr ROL_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "<-=", $3); }
+                | assign_expr ROR_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "->=", $3); }
+                | assign_expr REV_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "><=", $3); }
+                | assign_expr AND_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "&=",  $3); }
+                | assign_expr OR_ASSIGN  bool_or_expr   { $$ = new BinaryExpr($1, "|=",  $3); }
+                | assign_expr XOR_ASSIGN bool_or_expr   { $$ = new BinaryExpr($1, "^=",  $3); }
 
 
 bool_or_expr    : bool_and_expr
-                | BOOL_OR bool_and_expr 
+                | bool_or_expr BOOL_OR bool_and_expr    { $$ = new BinaryExpr($1, "or", $3); }
                 ;
 
 bool_and_expr   : bool_not_expr
-                | BOOL_AND bool_not_expr 
+                | bool_and_expr BOOL_AND bool_not_expr  { $$ = new BinaryExpr($1, "and", $3); }
                 ;
 
 bool_not_expr   : relation_expr
-                | BOOL_NOT relation_expr
+                | bool_not_expr BOOL_NOT relation_expr  { $$ = new BinaryExpr($1, "not", $3); }
                 ;
 
 relation_expr   : add_expr
-                | relation_expr EQ        add_expr
-                | relation_expr NEQ       add_expr
-                | relation_expr LESS      add_expr
-                | relation_expr GREATER   add_expr
-                | relation_expr LESSEQ    add_expr
-                | relation_expr GREATEREQ add_expr
+                | relation_expr EQ        add_expr  { $$ = new BinaryExpr($1, "==", $3); }
+                | relation_expr NEQ       add_expr  { $$ = new BinaryExpr($1, "<>", $3); }
+                | relation_expr LESS      add_expr  { $$ = new BinaryExpr($1, "<",  $3); }
+                | relation_expr GREATER   add_expr  { $$ = new BinaryExpr($1, ">",  $3); }
+                | relation_expr LESSEQ    add_expr  { $$ = new BinaryExpr($1, "<=", $3); }
+                | relation_expr GREATEREQ add_expr  { $$ = new BinaryExpr($1, ">=", $3); }
                 ;
 
 add_expr        : mult_expr
-                | add_expr PLUS  mult_expr
-                | add_expr MINUS mult_expr
+                | add_expr PLUS  mult_expr          { $$ = new BinaryExpr($1, "+", $3); }
+                | add_expr MINUS mult_expr          { $$ = new BinaryExpr($1, "-", $3); }
                 ;
 
 mult_expr       : bw_or_expr
-                | mult_expr MUL bw_or_expr
-                | mult_expr MOD bw_or_expr
-                | mult_expr DIV bw_or_expr
+                | mult_expr MUL bw_or_expr          { $$ = new BinaryExpr($1, "*",  $3); }
+                | mult_expr MOD bw_or_expr          { $$ = new BinaryExpr($1, "//", $3); }
+                | mult_expr DIV bw_or_expr          { $$ = new BinaryExpr($1, "/",  $3); }
                 ;
 
 bw_or_expr      : bw_and_expr
-                | bw_or_expr BW_OR  bw_and_expr
-                | bw_or_expr BW_XOR bw_and_expr
+                | bw_or_expr BW_OR  bw_and_expr     { $$ = new BinaryExpr($1, "|", $3); }
+                | bw_or_expr BW_XOR bw_and_expr     { $$ = new BinaryExpr($1, "^", $3); }
                 ;
 
 bw_and_expr     : shift_expr
-                | bw_and_expr BW_AND shift_expr
+                | bw_and_expr BW_AND shift_expr     { $$ = new BinaryExpr($1, "&", $3); }
                 ;
 
 shift_expr      : unary_expr
-                | shift_expr SHL unary_expr
-                | shift_expr SHR unary_expr
-                | shift_expr SAR unary_expr
-                | shift_expr ROL unary_expr
-                | shift_expr ROR unary_expr
-                | shift_expr REV unary_expr
+                | shift_expr SHL unary_expr         { $$ = new BinaryExpr($1, "<<", $3); }
+                | shift_expr SHR unary_expr         { $$ = new BinaryExpr($1, ">>", $3); }
+                | shift_expr SAR unary_expr         { $$ = new BinaryExpr($1, "~>", $3); }
+                | shift_expr ROL unary_expr         { $$ = new BinaryExpr($1, "<-", $3); }
+                | shift_expr ROR unary_expr         { $$ = new BinaryExpr($1, "->", $3); }
+                | shift_expr REV unary_expr         { $$ = new BinaryExpr($1, "><", $3); }
                 ;
 
 unary_expr      : unary2_expr
-                | MINUS  unary2_expr
-                | BW_NOT unary2_expr
+                | MINUS  unary2_expr    { $$ = new UnaryExpr("-", $2); }
+                | BW_NOT unary2_expr    { $$ = new UnaryExpr("!", $2); }
                 ;
 
 unary2_expr     : factor
-                | DEC   factor
-                | INC   factor
-                | SET   factor
-                | CLEAR factor
-                | factor DEC
-                | factor INC
-                | factor SET
-                | factor CLEAR
+                | DEC   factor          { $$ = new UnaryExpr("++", $2); }
+                | INC   factor          { $$ = new UnaryExpr("--", $2); }
+                | SET   factor          { $$ = new UnaryExpr("~~", $2); }
+                | CLEAR factor          { $$ = new UnaryExpr("~" , $2); }
+                | factor DEC            { $$ = new UnaryExpr($1, "++"); }
+                | factor INC            { $$ = new UnaryExpr($1, "--"); }
+                | factor SET            { $$ = new UnaryExpr($1, "~~"); }
+                | factor CLEAR          { $$ = new UnaryExpr($1, "~" ); }
                 ;
 
 factor          : primary_expr
-                | PAREN_L expr PAREN_R
+                | PAREN_L expr PAREN_R  { $$ = new WrapExpr("(", $2, ")"); }
                 ;
 
 primary_expr    : number
                 | address
+                | ident
                 ;
 
-address         : ADDR ident
-                | ident array_index
+address         : ADDR ident            { $$ = new AddressExpr($2); }
+                | ident array_index     { $$ = new AddressExpr($1, $2); }
                 ;
-
 
 // -----------------------------------------------------
 
@@ -367,19 +383,19 @@ number          : dec
 	            | hex
 	            ;
 
-dec             : DECIMAL { printf("%i ", $1); }
+dec             : DECIMAL               { $$ = new NumberExpr(10, $1); }
                 ;
 
-bin             : BINARY { printf("BIN %%%s", qPrintable(QString::number($1, 2))); }
+bin             : BINARY                { $$ = new NumberExpr(2, $1); }
                 ;
 
-quat            : QUATERNARY { printf("QUAT %%%%%s", qPrintable(QString::number($1, 4))); }
+quat            : QUATERNARY            { $$ = new NumberExpr(4, $1); }
                 ;
 
-hex             : HEXADECIMAL { printf("HEX $%s", qPrintable(QString::number($1, 16))); }
+hex             : HEXADECIMAL           { $$ = new NumberExpr(16, $1); }
                 ;
 
-ident           : IDENT { $$ = $1; printf("IDENT %s", qPrintable(*$1)); }
+ident           : IDENT                 { $$ = new IdentExpr($1); }
                 ;
 
 %%
@@ -414,4 +430,6 @@ int main( int argc, char **argv )
     filename = argv[0];
 
     yyparse();
+
+    
 }

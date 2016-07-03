@@ -2,12 +2,14 @@
 %option case-insensitive
 %option yylineno
 %option bison-locations
+%option bison-bridge
 
 %x INSTRING INOBJSTRING INESCAPE INLINECOMMENT INMULTICOMMENT INDOCLINECOMMENT INDOCMULTICOMMENT
 %x INDEC INHEX INQUAT INBIN
 
 %{
 
+#include "tree.h"
 #include "types.h"
 #include "parser.hpp"
 #include "config.h"
@@ -54,16 +56,6 @@ HEX         [0-9a-f]([0-9a-f_]+[0-9a-f]|[0-9a-f]*)
 FLOAT       {DEC}"."{DEC}
 
 IDENT       [a-z][a-z0-9]*
-
-BITWISE     "&"|"|"|"^"
-EQUALITY    "=="|"<>"
-RELATIONAL  ">"|">="|"<"|"<="
-SHIFT       ">>"|"<<"|"~>"|"->"|"<-"|"><"
-ARITHMETIC  "+"|"-"|"*"|"/"|"//"
-ASSIGN      ":="|"+="|"-="|"*="|"/="|"//="|"&="|"|="|"^="
-UNARY       "--"|"++"|"?"|"@"|"@@"|"^^"|"||"|"!"|"~~"|"~"
-
-OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{ASSIGN}
 
 %%
 
@@ -113,12 +105,12 @@ OP          {UNARY}|{ARITHMETIC}|{SHIFT}|{RELATIONAL}|{EQUALITY}|{BITWISE}|{ASSI
 }
 
 <INOBJSTRING>[_a-zA-Z0-9.\- ]+ {
-    yylval->str = new QString(yytext);
+    yylval->str = yytext;
     return OBJSTRING;
 }
 
 <INSTRING>["] {
-    yylval->str = new QString(str_collector);
+    yylval->str = qPrintable(str_collector);
     BEGIN(INITIAL);
     return STRING;
 }
@@ -246,7 +238,7 @@ dat     { block = DatBlock; return DAT; }
 asm     { block = AsmBlock; return ASM; }
 
 {IDENT}     {
-    yylval->str = new QString(yytext);
+    yylval->str = yytext;
     return IDENT;
 }
 

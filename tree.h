@@ -5,84 +5,232 @@
 #include <QVariant>
 
 #include <stdio.h>
-#include "errors.h"
 
-class Node
+class Expr
 {
-    Match _m;
-    QString _name;
+public:
+    virtual ~Expr() {}
+    virtual void print() = 0;
+};
 
+
+class NumberExpr : public Expr
+{
 protected:
-    QVariant _value;
+    quint32 _value;
+    int _base;
 
 public:
-    Node(Match m, QString name)
+    virtual ~NumberExpr() {}
+    NumberExpr(int base, quint32 value)
     {
-        _m = m;
-        _name = name;
-        _value = m.text();
+        _value = value;
+        _base = base;
     }
 
-    QString name()
+    void print()
     {
-        return _name;
+        if (_base == 2) printf("%%");
+        else if (_base == 4) printf("%%%%");
+        else if (_base == 16) printf("$");
+        printf("%s", qPrintable(QString::number(_value, _base)));
     }
 
-    virtual ~Node() {}
-
-    virtual void print() = 0;
-
-    virtual QVariant value()
+    quint32 value()
     {
         return _value;
     }
+};
 
-    void print(QString s2)
+class IdentExpr : public Expr
+{
+protected:
+    QString _value;
+
+public:
+    virtual ~IdentExpr() {}
+    IdentExpr(QString value)
     {
-        printf("%s '%s' ", qPrintable(_name), qPrintable(s2));
-        fflush(stdout);
+        _value = value;
+    }
+
+    void print()
+    {
+        printf("%s", qPrintable(_value));
+    }
+
+    QString value()
+    {
+        return _value;
     }
 };
 
-class DecimalNode : public Node
+class AddressExpr : public Expr
+{
+protected:
+    Expr * _ident;
+    Expr * _offset;
+
+public:
+    virtual ~AddressExpr() {}
+    AddressExpr(Expr * ident, Expr * offset = 0)
+    {
+        _ident = ident;
+        _offset = offset;
+    }
+
+    void print()
+    {
+        if (_offset != 0)
+        {
+            _ident->print();
+            printf("[");
+            _offset->print();
+            printf("]");
+        }
+        else
+        {
+            printf("@");
+            _ident->print();
+        }
+    }
+};
+
+
+
+class UnaryExpr : public Expr
+{
+protected:
+    Expr * _val;
+    QString _op;
+    bool _post;
+
+public:
+    virtual ~UnaryExpr() {}
+    UnaryExpr(Expr * val, QString op)
+    {
+        _val = val;
+        _op = op;
+        _post = true;
+    }
+
+    UnaryExpr(QString op, Expr * val)
+    {
+        _val = val;
+        _op = op;
+        _post = false;
+    }
+
+    void print()
+    {
+        if (_post)
+        {
+            _val->print();
+            printf("%s", qPrintable(_op));
+        }
+        else
+        {
+            printf("%s", qPrintable(_op));
+            _val->print();
+        }
+    }
+};
+
+
+
+
+class BinaryExpr : public Expr
+{
+protected:
+    Expr * _left;
+    QString _op;
+    Expr * _right;
+
+public:
+    virtual ~BinaryExpr() {}
+    BinaryExpr(Expr * left, QString op, Expr * right)
+    {
+        _left = left;
+        _op = op;
+        _right = right;
+    }
+
+    void print()
+    {
+        _left->print();
+        printf(" %s ", qPrintable(_op));
+        _right->print();
+    }
+};
+
+
+class WrapExpr : public Expr
+{
+protected:
+    QString _left;
+    Expr * _val;
+    QString _right;
+
+public:
+    virtual ~WrapExpr() {}
+    WrapExpr(QString left, Expr * val, QString right)
+    {
+        _left = left;
+        _val = val;
+        _right = right;
+    }
+
+    void print()
+    {
+        printf("%s", qPrintable(_left));
+        _val->print();
+        printf("%s", qPrintable(_right));
+    }
+};
+
+
+
+
+/*
+class DecimalExpr : public Expr
 {
 public:
-    DecimalNode(Match m)
-        : Node(m, "DEC")
+    DecimalExpr(Match m)
+        : Expr(m, "DEC")
     {
         _value = m.text().toInt();
     }
 
     void print()
     {
-        Node::print(QString::number(_value.toInt()));
+        Expr::print(QString::number(_value.toInt()));
     }
 };
 
 
-class FloatNode : public Node
+class FloatExpr : public Expr
 {
 
 public:
-    FloatNode(Match m)
-        : Node(m, "FLOAT")
+    FloatExpr(Match m)
+        : Expr(m, "FLOAT")
     {
         _value = m.text().toFloat();
     }
 
     void print()
     {
-        Node::print(QString::number(_value.toFloat()));
+        Expr::print(QString::number(_value.toFloat()));
     }
 };
 
 
 
-class HexadecimalNode : public Node
+class HexadecimalExpr : public Expr
 {
 public:
-    HexadecimalNode(Match m)
-        : Node(m, "HEX")
+    HexadecimalExpr(Match m)
+        : Expr(m, "HEX")
     {
         QString s = m.text();
         s = s.replace("_","");
@@ -100,16 +248,16 @@ public:
 
     void print()
     {
-        Node::print(QString::number(_value.toUInt(), 16));
+        Expr::print(QString::number(_value.toUInt(), 16));
     }
 };
 
 
-class BinaryNode : public Node
+class BinaryExpr : public Expr
 {
 public:
-    BinaryNode(Match m)
-        : Node(m, "BIN")
+    BinaryExpr(Match m)
+        : Expr(m, "BIN")
     {
         QString s = m.text();
         s = s.replace("_","");
@@ -142,11 +290,11 @@ public:
 
 
 
-class QuaternaryNode : public Node
+class QuaternaryExpr : public Expr
 {
 public:
-    QuaternaryNode(Match m)
-        : Node(m, "QUAT")
+    QuaternaryExpr(Match m)
+        : Expr(m, "QUAT")
     {
         QString s = m.text();
         s = s.replace("_","");
@@ -164,35 +312,35 @@ public:
 
     void print()
     {
-        Node::print(QString::number(_value.toUInt(), 4));
+        Expr::print(QString::number(_value.toUInt(), 4));
     }
 };
 
 
-class IdentifierNode : public Node
+class IdentifierExpr : public Expr
 {
 public:
-    IdentifierNode(Match m)
-        : Node(m, "IDENT")
+    IdentifierExpr(Match m)
+        : Expr(m, "IDENT")
     {
         _value = m.text();
     }
 
     void print()
     {
-        Node::print(_value.toString());
+        Expr::print(_value.toString());
     }
 };
 
-class BinaryOpNode : public Node
+class BinaryOpExpr : public Expr
 {
     QString _op;
-    Node * _lhs;
-    Node * _rhs;
+    Expr * _lhs;
+    Expr * _rhs;
 
 public:
-    BinaryOpNode(Node * lhs, Match op, Node * rhs)
-        : Node(op, "OP")
+    BinaryOpExpr(Expr * lhs, Match op, Expr * rhs)
+        : Expr(op, "OP")
     {
         _lhs = lhs;
         _rhs = rhs;
@@ -208,20 +356,20 @@ public:
 };
 
 
-class ExpressionNode : public Node
+class ExpressionExpr : public Expr
 {
-    Node * _term;
+    Expr * _term;
     QList<QString> _ops;
-    QList<Node *> _terms;
+    QList<Expr *> _terms;
 
 public:
-    ExpressionNode(Node * term)
-        : Node(Match(), "EXPR")
+    ExpressionExpr(Expr * term)
+        : Expr(Match(), "EXPR")
     {
         _term = term;
     }
 
-    void add(QString op, Node * term)
+    void add(QString op, Expr * term)
     {
         _ops.append(op);
         _terms.append(term);
@@ -305,13 +453,13 @@ public:
 
 
 
-class FactorNode : public Node
+class FactorExpr : public Expr
 {
-    Node * _expr;
+    Expr * _expr;
 
 public:
-    FactorNode(Node * expr)
-        : Node(Match(), "FACTOR")
+    FactorExpr(Expr * expr)
+        : Expr(Match(), "FACTOR")
     {
         _expr = expr;
     }
@@ -330,40 +478,5 @@ public:
     }
 };
 
-
-
-/*
-class ConstantArrayNode : public Node
-{
-    quint32 _start;
-    QList<Node *> _exprs;
-    QList<quint32> _offsets;
-
-public:
-    FactorNode(Match m)
-        : Node(m, "CONST_ARRAY")
-    {
-        _expr = expr;
-    }
-
-    void add(Match op, Node * term)
-    {
-        _exprs.append(op);
-        _terms.append(term);
-    }
-
-    void print()
-    {
-        printf("(");
-        _expr->print();
-        printf(")");
-        fflush(stdout);
-    }
-
-    Node * value()
-    {
-        return _expr;
-    }
-};
 
 */

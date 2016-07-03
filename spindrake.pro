@@ -10,6 +10,7 @@ INCLUDEPATH += .
 HEADERS += \
     types.h \
     config.h \
+    tree.h \
 
 FLEXSOURCES += lexer.l
 BISONSOURCES += parser.y
