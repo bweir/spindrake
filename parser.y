@@ -29,6 +29,7 @@ QString filename;
 
 %}
 
+%token-table
 %locations
 %define api.pure full
 %define parse.lac full
@@ -42,6 +43,7 @@ QString filename;
 %token <str>    OBJSTRING       "object name"
 %token <str>    STRING          "string"
 %token <str>    IDENT           "identifier"
+%token <num>    NUMBER          "number"
 %token <num>    BINARY          "binary number"
 %token <num>    QUATERNARY      "quaternary number"
 %token <num>    HEXADECIMAL     "hexadecimal number"
@@ -150,6 +152,8 @@ QString filename;
 %token OR_ASSIGN    "bitwise or assign (|=)"
 %token XOR_ASSIGN   "bitwise xor assign (^=)"
 
+%token END 0        "end of file"
+
 
 
 %%
@@ -244,7 +248,7 @@ pri_lines       :
 // dat blocks
 // -----------------------------------------------------
 
-dat             : DAT NL dat_lines                              { $$ = new BlockExpr(DatBlock, $3); $$->print(); }
+dat             : DAT NL dat_lines                              { $$ = new BlockExpr(DatBlock, $3); $$->print(); $$->fold(); $$->print(); }
                 
 dat_lines       : dat_lines dat_line                            { $$ = $1; $1->append($2); }
                 |                                               { $$ = new QList<Expr *>(); }
@@ -265,6 +269,7 @@ dat_items       :                                               { $$ = new QList
 
 dat_item        : data_type expr array_index                    { $$ = new DatItemExpr($1,                 $2, $3); }
                 | data_type expr                                { $$ = new DatItemExpr($1,                 $2, new NumberExpr(10, 0)); }
+                | expr array_index                              { $$ = new DatItemExpr(new DataTypeExpr(), $1, $2); }
                 | expr                                          { $$ = new DatItemExpr(new DataTypeExpr(), $1, new NumberExpr(10, 0)); }
                 ;
 
@@ -307,7 +312,7 @@ bool_and_expr   : bool_not_expr
                 ;
 
 bool_not_expr   : relation_expr
-                | bool_not_expr BOOL_NOT relation_expr  { $$ = new BinaryExpr($1, "not", $3); }
+                | BOOL_NOT relation_expr                { $$ = new UnaryExpr("not", $2); }
                 ;
 
 relation_expr   : add_expr
@@ -354,12 +359,12 @@ unary_expr      : unary2_expr
                 ;
 
 unary2_expr     : factor
-                | DEC   factor          { $$ = new UnaryExpr("++", $2); }
-                | INC   factor          { $$ = new UnaryExpr("--", $2); }
+                | DEC   factor          { $$ = new UnaryExpr("--", $2); }
+                | INC   factor          { $$ = new UnaryExpr("++", $2); }
                 | SET   factor          { $$ = new UnaryExpr("~~", $2); }
                 | CLEAR factor          { $$ = new UnaryExpr("~" , $2); }
-                | factor DEC            { $$ = new UnaryExpr($1, "++"); }
-                | factor INC            { $$ = new UnaryExpr($1, "--"); }
+                | factor DEC            { $$ = new UnaryExpr($1, "--"); }
+                | factor INC            { $$ = new UnaryExpr($1, "++"); }
                 | factor SET            { $$ = new UnaryExpr($1, "~~"); }
                 | factor CLEAR          { $$ = new UnaryExpr($1, "~" ); }
                 ;
@@ -373,7 +378,7 @@ primary_expr    : number
                 | ident
                 ;
 
-address         : ADDR ident            { $$ = new AddressExpr($2); }
+address         : ADDR ident            { $$ = new AddressExpr($2, new NumberExpr(10, 0)); }
                 | ident array_index     { $$ = new AddressExpr($1, $2); }
                 ;
 

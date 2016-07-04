@@ -1,20 +1,25 @@
 #pragma once
 
 #include "types.h"
+#include "func.h"
 
 class Expr
 {
+protected:
+    quint32 _value;
+
 public:
     virtual ~Expr() {}
     virtual void print() = 0;
     virtual bool isConstant() = 0;
+    virtual quint32 value() = 0;
+    virtual void fold() = 0;
 };
 
 
 class NumberExpr : public Expr
 {
 protected:
-    quint32 _value;
     int _base;
 
 public:
@@ -37,28 +42,35 @@ public:
     {
         return true;
     }
-
+    
     quint32 value()
     {
         return _value;
     }
+
+    void fold() {}
 };
+
+
+Expr * foldConstants(Expr * exp);
+
+
 
 class IdentExpr : public Expr
 {
 protected:
-    QString _value;
+    QString _ident;
 
 public:
     virtual ~IdentExpr() {}
-    IdentExpr(QString value)
+    IdentExpr(QString ident)
     {
-        _value = value;
+        _ident = ident;
     }
 
     void print()
     {
-        printf("%s", qPrintable(_value));
+        printf("%s", qPrintable(_ident));
     }
 
     bool isConstant()
@@ -66,10 +78,17 @@ public:
         return false;
     }
 
-    QString value()
+    QString ident()
     {
-        return _value;
+        return _ident;
     }
+
+    quint32 value()
+    {
+        return 0;
+    }
+
+    void fold() {}
 };
 
 class AddressExpr : public Expr
@@ -79,8 +98,13 @@ protected:
     Expr * _offset;
 
 public:
-    virtual ~AddressExpr() {}
-    AddressExpr(Expr * ident, Expr * offset = 0)
+    virtual ~AddressExpr()
+    {
+        delete _ident;
+        delete _offset;
+    }
+
+    AddressExpr(Expr * ident, Expr * offset)
     {
         _ident = ident;
         _offset = offset;
@@ -106,6 +130,17 @@ public:
     {
         return _offset->isConstant();
     }
+
+    quint32 value()
+    {
+        if (!isConstant()) return false;
+        return _offset->value();
+    }
+
+    void fold()
+    {
+        _offset = foldConstants(_offset);
+    }
 };
 
 
@@ -115,7 +150,11 @@ protected:
     Expr * _val;
 
 public:
-    virtual ~LiteralExpr() {}
+    virtual ~LiteralExpr()
+    {
+        delete _val;
+    }
+
     LiteralExpr(Expr * val)
     {
         _val = val;
@@ -130,6 +169,17 @@ public:
     bool isConstant()
     {
         return _val->isConstant();
+    }
+
+    quint32 value()
+    {
+        if (!isConstant()) return 0;
+        return _val->value();
+    }
+
+    void fold()
+    {
+        _val = foldConstants(_val);
     }
 };
 
@@ -156,7 +206,7 @@ public:
         return true;
     }
 
-    QString value()
+    QString ident()
     {
         switch (_val)
         {
@@ -167,6 +217,13 @@ public:
         }
         return "";
     }
+
+    quint32 value()
+    {
+        return 0;
+    }
+
+    void fold() {}
 };
 
 
@@ -177,7 +234,15 @@ protected:
     QList<Expr *> * _lines;
 
 public:
-    virtual ~BlockExpr() {}
+    virtual ~BlockExpr()
+    {
+        foreach(Expr * l, *_lines)
+        {
+            delete l;
+        }
+        delete _lines;
+    }
+
     BlockExpr(Block block, QList<Expr *> * lines)
     {
         _block = block;
@@ -217,6 +282,19 @@ public:
 
         return true;
     }
+
+    quint32 value()
+    {
+        return 0;
+    }
+
+    void fold()
+    {
+        foreach(Expr * l, *_lines)
+        {
+            l->fold();
+        }
+    }
 };
 
 
@@ -229,7 +307,17 @@ protected:
     QList<Expr *> * _items;
 
 public:
-    virtual ~DatLineExpr() {}
+    virtual ~DatLineExpr()
+    {
+        delete _symbol;
+        delete _align;
+
+        foreach(Expr * i, *_items)
+        {
+            delete i;
+        }
+        delete _items;
+    }
 
     DatLineExpr(Expr * symbol, 
                 Expr * align,
@@ -242,10 +330,10 @@ public:
 
     void print()
     {
-        if (!(_symbol->value().isEmpty()))
-            printf("\n%s\n", qPrintable(_symbol->value()));
+        if (!(_symbol->ident().isEmpty()))
+            printf("\n%s\n", qPrintable(_symbol->ident()));
 
-        printf("%-8s", qPrintable(_align->value()));
+        printf("%-8s", qPrintable(_align->ident()));
 
         for (int i = 0; i < _items->size(); i++)
         {
@@ -258,9 +346,6 @@ public:
 
     bool isConstant()
     {
-        if (!_symbol->isConstant()) return false;
-        if (!_align->isConstant()) return false;
-
         foreach(Expr * i, *_items)
         {
             if (!i->isConstant())
@@ -268,6 +353,19 @@ public:
         }
 
         return true;
+    }
+
+    quint32 value()
+    {
+        return 0;
+    }
+
+    void fold()
+    {
+        foreach(Expr * l, *_items)
+        {
+            l->fold();
+        }
     }
 };
 
@@ -280,7 +378,12 @@ protected:
     Expr * _count;
 
 public:
-    virtual ~DatItemExpr() {}
+    virtual ~DatItemExpr()
+    {
+        delete _size;
+        delete _data;
+        delete _count;
+    }
 
     DatItemExpr(Expr * size, Expr * data, Expr * count)
     {
@@ -291,14 +394,19 @@ public:
 
     void print()
     {
-        if (!(_size->value().isEmpty()))
+        if (!(_size->ident().isEmpty()))
         {
             _size->print();
             printf(" ");
         }
 
         _data->print();
-        //printf("%s", qPrintable(_count->value()));
+
+        if (_count->value())
+        {
+            printf(" ");
+            _count->print();
+        }
     }
 
     bool isConstant()
@@ -307,6 +415,18 @@ public:
         if (!_data->isConstant()) return false;
         if (!_count->isConstant()) return false;
         return true;
+    }
+
+    quint32 value()
+    {
+        if (!_data->isConstant()) return 0;
+        return _data->value();
+    }
+
+    void fold()
+    {
+        _data = foldConstants(_data);
+        _count = foldConstants(_count);
     }
 };
 
@@ -319,7 +439,11 @@ protected:
     bool _post;
 
 public:
-    virtual ~UnaryExpr() {}
+    virtual ~UnaryExpr()
+    {
+        delete _val;
+    }
+
     UnaryExpr(Expr * val, QString op)
     {
         _val = val;
@@ -352,6 +476,38 @@ public:
     {
         return _val->isConstant();
     }
+
+    quint32 value()
+    {
+        if (!isConstant()) return 0;
+
+        quint32 v = _val->value();
+
+        if (_post)
+        {
+            if (_op == "++")        return v++;
+            else if (_op == "--")   return v--;
+            else if (_op == "~~")   return v = 0xffffffff;
+            else if (_op == "~")    return v = 0x00000000;
+            else return 0;
+        }
+        else
+        {
+            if (_op == "not" )      return !v;
+            else if (_op == "-")    return -v;
+            else if (_op == "!")    return ~v;
+            else if (_op == "++")   return ++v;
+            else if (_op == "--")   return --v;
+            else if (_op == "~~")   { if (v & (1 << 15)) v |= 0xffff0000; return v; }
+            else if (_op == "~")    { if (v & (1 << 7))  v |= 0xffffff00; return v; }
+            else return 0;
+        }
+    }
+
+    void fold()
+    {
+        _val = foldConstants(_val);
+    }
 };
 
 
@@ -365,7 +521,11 @@ protected:
     Expr * _right;
 
 public:
-    virtual ~BinaryExpr() {}
+    virtual ~BinaryExpr()
+    {
+        delete _left;
+        delete _right;
+    }
     BinaryExpr(Expr * left, QString op, Expr * right)
     {
         _left = left;
@@ -386,6 +546,67 @@ public:
         if (!_right->isConstant()) return false;
         return true;
     }
+
+    quint32 value()
+    {
+        if (!isConstant()) return 0;
+
+        quint32 l = _left->value();
+        quint32 r = _right->value();
+
+        if (_op == "=" )        return l = r;
+        else if (_op == "+=")   return l = l + r;
+        else if (_op == "-=")   return l = l - r;
+        else if (_op == "*=")   return l = l * r;
+        else if (_op == "//=")  return l = l % r;
+        else if (_op == "/=")   return l = l / r;
+        else if (_op == "<<=")  return l = l << r;
+        else if (_op == ">>=")  return l = l >> r;
+        else if (_op == "~>=")  return l = ((signed) l) >> r;
+        else if (_op == "<-=")  return l = rotateLeft(l, r);
+        else if (_op == "->=")  return l = rotateLeft(l, r);
+        else if (_op == "><=")  return l = reverse(l, r);
+        else if (_op == "&=")   return l = l & r;
+        else if (_op == "|=")   return l = l | r;
+        else if (_op == "^=")   return l = l ^ r;
+
+        else if (_op == "or")   return l || r;
+        else if (_op == "and")  return l && r;
+
+        else if (_op == "==")   return (l == r);
+        else if (_op == "<>")   return (l != r);
+        else if (_op == "<")    return (l < r);
+        else if (_op == ">")    return (l > r);
+        else if (_op == "<=")   return (l <= r);
+        else if (_op == ">=")   return (l >= r);
+
+        else if (_op == "+")    return l + r;
+        else if (_op == "-")    return l - r;
+
+        else if (_op == "*")    return l * r;
+        else if (_op == "//")   return l % r;
+        else if (_op == "/")    return l / r;
+
+        else if (_op == "|")    return l | r;
+        else if (_op == "^")    return l ^ r;
+
+        else if (_op == "&")    return l & r;
+
+        else if (_op == "<<")   return l << r;
+        else if (_op == ">>")   return l >> r;
+        else if (_op == "~>")   return ((signed) l) >> r;
+        else if (_op == "<-")   return rotateLeft(l, r);
+        else if (_op == "->")   return rotateRight(l, r);
+        else if (_op == "><")   return reverse(l, r);
+
+        else return 0;
+    }
+
+    void fold()
+    {
+        _left = foldConstants(_left);
+        _right = foldConstants(_right);
+    }
 };
 
 
@@ -397,7 +618,10 @@ protected:
     QString _right;
 
 public:
-    virtual ~WrapExpr() {}
+    virtual ~WrapExpr()
+    {
+        delete _val;
+    }
     WrapExpr(QString left, Expr * val, QString right)
     {
         _left = left;
@@ -414,7 +638,18 @@ public:
 
     bool isConstant()
     {
-        return _val->isConstant();
+        return false;//_val->isConstant();
+    }
+
+    quint32 value()
+    {
+        if (!_val->isConstant()) return 0;
+        return _val->value();
+    }
+
+    void fold()
+    {
+        _val = foldConstants(_val);
     }
 };
 
