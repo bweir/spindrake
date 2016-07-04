@@ -1,11 +1,5 @@
 #pragma once
 
-#include <QString>
-#include <QList>
-#include <QVariant>
-
-#include <stdio.h>
-
 #include "types.h"
 
 class Expr
@@ -13,6 +7,7 @@ class Expr
 public:
     virtual ~Expr() {}
     virtual void print() = 0;
+    virtual bool isConstant() = 0;
 };
 
 
@@ -38,6 +33,11 @@ public:
         printf("%s", qPrintable(QString::number(_value, _base)));
     }
 
+    bool isConstant()
+    {
+        return true;
+    }
+
     quint32 value()
     {
         return _value;
@@ -59,6 +59,11 @@ public:
     void print()
     {
         printf("%s", qPrintable(_value));
+    }
+
+    bool isConstant()
+    {
+        return false;
     }
 
     QString value()
@@ -96,6 +101,11 @@ public:
             _ident->print();
         }
     }
+
+    bool isConstant()
+    {
+        return _offset->isConstant();
+    }
 };
 
 
@@ -116,6 +126,11 @@ public:
         printf("#");
         _val->print();
     }
+
+    bool isConstant()
+    {
+        return _val->isConstant();
+    }
 };
 
 
@@ -126,25 +141,31 @@ protected:
 
 public:
     virtual ~DataTypeExpr() {}
-    DataTypeExpr(DataType val)
+    DataTypeExpr(DataType val = NoDataType)
     {
         _val = val;
     }
 
     void print()
     {
-        printf("%s ",qPrintable(value()));
+        printf("%s",qPrintable(value()));
+    }
+
+    bool isConstant()
+    {
+        return true;
     }
 
     QString value()
     {
         switch (_val)
         {
-            case DataByte:  return "byte"; ;;
-            case DataWord:  return "word"; ;;
-            case DataLong:  return "long"; ;;
-            default:        return ""; ;;
+            case DataByte:      return "byte"; ;;
+            case DataWord:      return "word"; ;;
+            case DataLong:      return "long"; ;;
+            case NoDataType:    return ""; ;;
         }
+        return "";
     }
 };
 
@@ -185,6 +206,17 @@ public:
         }
 
     }
+
+    bool isConstant()
+    {
+        foreach(Expr * l, *_lines)
+        {
+            if (!l->isConstant())
+                return false;
+        }
+
+        return true;
+    }
 };
 
 
@@ -211,9 +243,8 @@ public:
     void print()
     {
         if (!(_symbol->value().isEmpty()))
-        {
             printf("\n%s\n", qPrintable(_symbol->value()));
-        }
+
         printf("%-8s", qPrintable(_align->value()));
 
         for (int i = 0; i < _items->size(); i++)
@@ -223,6 +254,59 @@ public:
                 printf(", ");
         }
         printf("\n");
+    }
+
+    bool isConstant()
+    {
+        if (!_symbol->isConstant()) return false;
+        if (!_align->isConstant()) return false;
+
+        foreach(Expr * i, *_items)
+        {
+            if (!i->isConstant())
+                return false;
+        }
+
+        return true;
+    }
+};
+
+
+class DatItemExpr : public Expr
+{
+protected:
+    DataTypeExpr * _size;
+    Expr * _data;
+    Expr * _count;
+
+public:
+    virtual ~DatItemExpr() {}
+
+    DatItemExpr(Expr * size, Expr * data, Expr * count)
+    {
+        _size = (DataTypeExpr *) size;
+        _data = (Expr *) data;
+        _count = (Expr *) count;
+    }
+
+    void print()
+    {
+        if (!(_size->value().isEmpty()))
+        {
+            _size->print();
+            printf(" ");
+        }
+
+        _data->print();
+        //printf("%s", qPrintable(_count->value()));
+    }
+
+    bool isConstant()
+    {
+        if (!_size->isConstant()) return false;
+        if (!_data->isConstant()) return false;
+        if (!_count->isConstant()) return false;
+        return true;
     }
 };
 
@@ -263,6 +347,11 @@ public:
             _val->print();
         }
     }
+
+    bool isConstant()
+    {
+        return _val->isConstant();
+    }
 };
 
 
@@ -290,6 +379,13 @@ public:
         printf(" %s ", qPrintable(_op));
         _right->print();
     }
+
+    bool isConstant()
+    {
+        if (!_left->isConstant()) return false;
+        if (!_right->isConstant()) return false;
+        return true;
+    }
 };
 
 
@@ -314,6 +410,11 @@ public:
         printf("%s", qPrintable(_left));
         _val->print();
         printf("%s", qPrintable(_right));
+    }
+
+    bool isConstant()
+    {
+        return _val->isConstant();
     }
 };
 

@@ -1,8 +1,7 @@
 
 %{
 #include "types.h"
-#include "stdio.h"
-#include "config.h"
+#include "parser.hpp"
 #include "tree.h"
 
 Expr * root = NULL;
@@ -34,7 +33,6 @@ QString filename;
 %define api.pure full
 %define parse.lac full
 %define parse.error verbose
-
 
 %start program
 
@@ -70,7 +68,6 @@ QString filename;
 %type <exp>     data_type
 
 %type <exp>     dat 
-%type <list>    dat_entry
 %type <list>    dat_lines
 %type <exp>     dat_line
 %type <list>    dat_items
@@ -253,25 +250,22 @@ dat_lines       : dat_lines dat_line                            { $$ = $1; $1->a
                 |                                               { $$ = new QList<Expr *>(); }
                 ;
 
-dat_line        : dat_align dat_entry NL                        { $$ = new DatLineExpr(new IdentExpr(""), $1, $2); }
-                | ident dat_align dat_entry NL                  { $$ = new DatLineExpr($1, $2, $3); }
-                | ident NL dat_align dat_entry NL               { $$ = new DatLineExpr($1, $3, $4); }
+dat_line        : dat_align dat_items NL                        { $$ = new DatLineExpr(new IdentExpr(""), $1, $2); }
+                | ident dat_align dat_items NL                  { $$ = new DatLineExpr($1, $2, $3); }
+                | ident NL dat_align dat_items NL               { $$ = new DatLineExpr($1, $3, $4); }
                 ;
 
 dat_align       : data_type
                 ;
 
-dat_entry       : dat_item dat_items                            { $2->prepend($1); $$ = $2; }
+dat_items       :                                               { $$ = new QList<Expr *>(); }
+                | dat_items dat_item                            { $$ = $1; $$->append($2); }
+                | dat_items dat_item COMMA                      { $$ = $1; $$->append($2); }
                 ;
 
-dat_items       : dat_items COMMA dat_item                      { $$ = $1; $1->append($3); }
-                |                                               { $$ = new QList<Expr *>(); }
-                ;
-
-dat_item        : data_type expr array_index
-                | data_type expr 
-                | expr array_index
-                | expr
+dat_item        : data_type expr array_index                    { $$ = new DatItemExpr($1,                 $2, $3); }
+                | data_type expr                                { $$ = new DatItemExpr($1,                 $2, new NumberExpr(10, 0)); }
+                | expr                                          { $$ = new DatItemExpr(new DataTypeExpr(), $1, new NumberExpr(10, 0)); }
                 ;
 
 // expression parsing
@@ -385,9 +379,9 @@ address         : ADDR ident            { $$ = new AddressExpr($2); }
 
 // -----------------------------------------------------
 
-data_type       : BYTE { $$ = new DataTypeExpr(DataByte); }
-                | WORD { $$ = new DataTypeExpr(DataWord); }
-                | LONG { $$ = new DataTypeExpr(DataLong); }
+data_type       : BYTE                  { $$ = new DataTypeExpr(DataByte); }
+                | WORD                  { $$ = new DataTypeExpr(DataWord); }
+                | LONG                  { $$ = new DataTypeExpr(DataLong); }
                 ;
 
 number          : dec

@@ -1,8 +1,39 @@
-obj
-alias : "chickenbacon"
+OBJ
 
-    pub main
-    alias[chicken] : "chickenbacon"
-    alias[%%99] : "chickenbacon"
-alias : "chicken//bacon"
-alias : "chickenbacon"
+    nice : "mmoofen"
+
+CON
+    #1, d
+    CHICKEN = 24524
+    BACON = 2423
+    CATS = $013433af
+    DOGS = %%10123
+    PIGS = %1011100
+
+    #2343, arf, noof, meef, beef, food
+
+    bacon = 4*(3 + 4) / 123  // 33
+
+    #3 + 5 >> 434 + @fdsi + -arfnar[243], asd233,  df
+
+    x = 5 == 3432
+
+    x = 3 = 234
+
+VAR
+    
+    byte chicken
+    byte chicken[0]
+    word noofoe
+    long neeee
+
+DAT
+
+chicken
+byte    3, 4,2, 34, 2 ,1 
+
+byte    3, 4,2, 34, 2 ,1 
+byte    3, 4,2, 34, 2 ,1 
+
+byte    word    3, 4/32423,2, 34+342-123*(12+4), 2 ,1 
+chicke byte    3, 4,2, 34, 2 ,1 

@@ -10,9 +10,8 @@
 %{
 
 #include "types.h"
-#include "tree.h"
 #include "parser.hpp"
-#include "config.h"
+#include "tree.h"
 
 int colnum = 1;
 
