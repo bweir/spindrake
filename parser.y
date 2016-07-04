@@ -254,17 +254,16 @@ dat_lines       : dat_lines dat_line                            { $$ = $1; $1->a
                 |                                               { $$ = new QList<Expr *>(); }
                 ;
 
-dat_line        : dat_align dat_items NL                        { $$ = new DatLineExpr(new IdentExpr(""), $1, $2); }
-                | ident dat_align dat_items NL                  { $$ = new DatLineExpr($1, $2, $3); }
-                | ident NL dat_align dat_items NL               { $$ = new DatLineExpr($1, $3, $4); }
+dat_line        : dat_align dat_item dat_items NL               { $3->prepend($2); $$ = new DatLineExpr(new IdentExpr(""), $1, $3); }
+                | ident dat_align dat_item dat_items NL         { $4->prepend($3); $$ = new DatLineExpr($1, $2, $4); }
+                | ident NL dat_align dat_item dat_items NL      { $5->prepend($4); $$ = new DatLineExpr($1, $3, $5); }
                 ;
 
 dat_align       : data_type
                 ;
 
-dat_items       :                                               { $$ = new QList<Expr *>(); }
-                | dat_items dat_item                            { $$ = $1; $$->append($2); }
-                | dat_items dat_item COMMA                      { $$ = $1; $$->append($2); }
+dat_items       : dat_items COMMA dat_item                      { $$ = $1; $$->append($3); }
+                |                                               { $$ = new QList<Expr *>(); }
                 ;
 
 dat_item        : data_type expr array_index                    { $$ = new DatItemExpr($1,                 $2, $3); }

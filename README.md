@@ -28,6 +28,9 @@ Experiments in using Bison/Flex for Spin parsing
       - `|<`
       - `>|`
       - `+x`
+    - Removed keywords
+      - `constant`
+      - `string`
 - Single address operator: `@`
 - Automatic constant folding
 - Automatic string termination (no `string()` keyword)
