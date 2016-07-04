@@ -32,10 +32,16 @@ public:
 
     void print()
     {
-        if (_base == 2) printf("%%");
-        else if (_base == 4) printf("%%%%");
-        else if (_base == 16) printf("$");
-        printf("%s", qPrintable(QString::number(_value, _base)));
+        switch (_base)
+        {
+            case 2: printf("%%");
+            case 4: printf("%%%%");
+            case 16: printf("$");
+        }
+        if (_base == 10)
+            printf("%s", qPrintable(QString::number((qint32) _value)));
+        else
+            printf("%s", qPrintable(QString::number(_value, _base)));
     }
 
     bool isConstant()
@@ -562,7 +568,7 @@ public:
         else if (_op == "/=")   return l = l / r;
         else if (_op == "<<=")  return l = l << r;
         else if (_op == ">>=")  return l = l >> r;
-        else if (_op == "~>=")  return l = ((signed) l) >> r;
+        else if (_op == "~>=")  return l = (quint32) (((qint32) l) >> r);
         else if (_op == "<-=")  return l = rotateLeft(l, r);
         else if (_op == "->=")  return l = rotateLeft(l, r);
         else if (_op == "><=")  return l = reverse(l, r);
@@ -594,7 +600,7 @@ public:
 
         else if (_op == "<<")   return l << r;
         else if (_op == ">>")   return l >> r;
-        else if (_op == "~>")   return ((signed) l) >> r;
+        else if (_op == "~>")   return (quint32) (((qint32) l) >> r);
         else if (_op == "<-")   return rotateLeft(l, r);
         else if (_op == "->")   return rotateRight(l, r);
         else if (_op == "><")   return reverse(l, r);
@@ -638,7 +644,7 @@ public:
 
     bool isConstant()
     {
-        return false;//_val->isConstant();
+        return _val->isConstant();
     }
 
     quint32 value()
