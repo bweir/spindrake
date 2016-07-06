@@ -1,5 +1,6 @@
 #include "tree.h"
 #include "printer.h"
+#include "treeprinter.h"
 #include "navigator.h"
 #include <QDebug>
 
@@ -23,17 +24,14 @@ int main( int argc, char **argv )
     yyparse();
 
     Printer printer;
+    TreePrinter treeprinter;
 
-//    navigator.walk(rootExpr, printer);
+    Navigator navigator;
+
+    navigator.walk(rootExpr, treeprinter);
     printer.print(rootExpr);
     rootExpr->fold();
     printer.print(rootExpr);
-//
-
-//    foreach(QString i, rootExpr->constants.keys())
-//    {
-//        printer.print(rootExpr->constants[i]);
-//    }
 
     delete rootExpr;
 }

@@ -18,6 +18,7 @@ HEADERS += \
     types.h \
     tree.h \
     printer.h \
+    treeprinter.h \
     func.h \
     navigator.h \
 
