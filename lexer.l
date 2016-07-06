@@ -52,7 +52,7 @@ IDENT       [a-z][a-z0-9]*
 [ \t]* {
     if (startingline && yylloc->first_column == 1)
     {
-        printf("%s", qPrintable(QString(yyleng, ' ')));
+//        printf("%s", qPrintable(QString(yyleng, ' ')));
     }
     startingline  = false;
 }

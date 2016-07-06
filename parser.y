@@ -4,7 +4,7 @@
 #include "parser.hpp"
 #include "tree.h"
 
-Expr * root = NULL;
+ObjectExpr * rootExpr = NULL;
 %}
 
 %union {
@@ -69,12 +69,20 @@ QString filename;
 %type <exp>     ident bin quat dec hex number
 %type <exp>     data_type
 
+%type <list>    blocklist
+%type <exp>     block
+
+%type <exp>     con
+%type <list>    con_lines
+%type <exp>     con_line
+
 %type <exp>     dat 
 %type <list>    dat_lines
 %type <exp>     dat_line
 %type <list>    dat_items
 %type <exp>     dat_item
 %type <exp>     dat_symbol dat_align dat_size
+
 
 // operators
 
@@ -158,33 +166,28 @@ QString filename;
 
 %%
 
-program         : blocklist
+program         : blocklist                                     { rootExpr = new ObjectExpr(filename, $1); }
                 ;
 
-blocklist       : block
-                | blocklist block
+blocklist       : blocklist block                               { $$ = $1; $1->append($2); }
+                |                                               { $$ = new QList<Expr *>(); }
                 ;
 
-block           : con con_lines  { printf("\n"); }
-                | var var_lines  { printf("\n"); }
-                | obj obj_lines  { printf("\n"); }
-                | dat { printf("\n"); }
+block           : con
+                | dat 
                 ;
 
 // con blocks
 // -----------------------------------------------------
 
-con             : CON NL    { printf("CON\n"); }
+con             : CON NL con_lines                              { $$ = new BlockExpr(ConBlock, $3); }
                 ;
 
-con_lines       : con_line
-                | con_lines con_line
+con_lines       : con_lines con_line                            { $$ = $1; $1->append($2); }
+                |                                               { $$ = new QList<Expr *>(); }
                 ;
 
-con_line        : IDENT ASSIGN expr NL
-                {
-                    //printf("%s = %u\n", qPrintable(*$1), $3);
-                }
+con_line        : ident ASSIGN expr NL                          { $$ = new ConAssignExpr($1, $3); }
                 | literal COMMA con_array NL
                 ;
 
@@ -199,7 +202,7 @@ con_array_item  : ident
 // var blocks
 // -----------------------------------------------------
 
-var             : VAR NL    { printf("VAR\n"); }
+var             : VAR NL var_lines
                 ;
 
 var_lines       : var_line
@@ -213,21 +216,18 @@ var_line        : data_type IDENT NL
 // obj blocks
 // -----------------------------------------------------
 
-obj             : OBJ NL    { printf("OBJ\n"); }
+obj             : OBJ NL obj_lines
                 ;
 
 obj_lines       : obj_line
                 | obj_lines obj_line
                 ;
 
-obj_line        : ident ALIAS OBJSTRING NL
-                {
-                    //printf("%s : \"%s\"\n", qPrintable(*$1), qPrintable(*$3));
-                }
-                | ident array_index ALIAS OBJSTRING NL
-                {
-                    //printf("%s : \"%s\"\n", qPrintable(*$1), qPrintable(*$4));
-                }
+obj_line        : obj_alias OBJSTRING NL
+                ;
+
+obj_alias       : ident ALIAS
+                | ident array_index ALIAS
                 ;
 
 // pub/pri blocks
@@ -248,7 +248,7 @@ pri_lines       :
 // dat blocks
 // -----------------------------------------------------
 
-dat             : DAT NL dat_lines                              { $$ = new BlockExpr(DatBlock, $3); $$->print(); $$->fold(); $$->print(); }
+dat             : DAT NL dat_lines                              { $$ = new BlockExpr(DatBlock, $3); }
                 
 dat_lines       : dat_lines dat_line                            { $$ = $1; $1->append($2); }
                 |                                               { $$ = new QList<Expr *>(); }
@@ -429,18 +429,3 @@ void print(const char * s)
     printf("%s '%s' ", s, yytext);
 }
 
-
-int main( int argc, char **argv )
-{
-    ++argv, --argc;  /* skip over program name */
-    if ( argc > 0 )
-        yyin = fopen( argv[0], "r" );
-    else
-        yyin = stdin;
-
-    filename = argv[0];
-
-    yyparse();
-
-    
-}

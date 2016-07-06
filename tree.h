@@ -3,45 +3,49 @@
 #include "types.h"
 #include "func.h"
 
+
+class AbstractVisitor;
+
 class Expr
 {
-protected:
-    quint32 _value;
-
 public:
+    quint32 num;
     virtual ~Expr() {}
-    virtual void print() = 0;
     virtual bool isConstant() = 0;
     virtual quint32 value() = 0;
     virtual void fold() = 0;
+
+    virtual void accept(AbstractVisitor & visitor) = 0;
+};
+
+class AbstractVisitor {
+public:
+    virtual void visit(NumberExpr & expr) = 0;
+    virtual void visit(IdentExpr & expr) = 0;
+    virtual void visit(AddressExpr & expr) = 0;
+    virtual void visit(LiteralExpr & expr) = 0;
+    virtual void visit(DataTypeExpr & expr) = 0;
+    virtual void visit(BlockExpr & expr) = 0;
+    virtual void visit(DatLineExpr & expr) = 0;
+    virtual void visit(DatItemExpr & expr) = 0;
+    virtual void visit(UnaryExpr & expr) = 0;
+    virtual void visit(BinaryExpr & expr) = 0;
+    virtual void visit(WrapExpr & expr) = 0;
+    virtual void visit(ObjectExpr & expr) = 0;
+
+    virtual void visit(ConAssignExpr & expr) = 0;
 };
 
 
 class NumberExpr : public Expr
 {
-protected:
-    int _base;
-
 public:
+    int _base;
     virtual ~NumberExpr() {}
     NumberExpr(int base, quint32 value)
     {
-        _value = value;
+        num = value;
         _base = base;
-    }
-
-    void print()
-    {
-        switch (_base)
-        {
-            case 2: printf("%%");
-            case 4: printf("%%%%");
-            case 16: printf("$");
-        }
-        if (_base == 10)
-            printf("%s", qPrintable(QString::number((qint32) _value)));
-        else
-            printf("%s", qPrintable(QString::number(_value, _base)));
     }
 
     bool isConstant()
@@ -51,10 +55,12 @@ public:
     
     quint32 value()
     {
-        return _value;
+        return num;
     }
 
     void fold() {}
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
 
@@ -64,19 +70,12 @@ Expr * foldConstants(Expr * exp);
 
 class IdentExpr : public Expr
 {
-protected:
-    QString _ident;
-
 public:
+    QString _ident;
     virtual ~IdentExpr() {}
     IdentExpr(QString ident)
     {
         _ident = ident;
-    }
-
-    void print()
-    {
-        printf("%s", qPrintable(_ident));
     }
 
     bool isConstant()
@@ -86,7 +85,7 @@ public:
 
     QString ident()
     {
-        return _ident;
+        return _ident.toLower();
     }
 
     quint32 value()
@@ -95,15 +94,16 @@ public:
     }
 
     void fold() {}
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
 class AddressExpr : public Expr
 {
-protected:
-    Expr * _ident;
+public:
+    IdentExpr * _ident;
     Expr * _offset;
 
-public:
     virtual ~AddressExpr()
     {
         delete _ident;
@@ -112,29 +112,13 @@ public:
 
     AddressExpr(Expr * ident, Expr * offset)
     {
-        _ident = ident;
+        _ident = (IdentExpr *) ident;
         _offset = offset;
-    }
-
-    void print()
-    {
-        if (_offset != 0)
-        {
-            _ident->print();
-            printf("[");
-            _offset->print();
-            printf("]");
-        }
-        else
-        {
-            printf("@");
-            _ident->print();
-        }
     }
 
     bool isConstant()
     {
-        return _offset->isConstant();
+        return false;
     }
 
     quint32 value()
@@ -147,15 +131,16 @@ public:
     {
         _offset = foldConstants(_offset);
     }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
 
 class LiteralExpr : public Expr
 {
-protected:
+public:
     Expr * _val;
 
-public:
     virtual ~LiteralExpr()
     {
         delete _val;
@@ -164,12 +149,6 @@ public:
     LiteralExpr(Expr * val)
     {
         _val = val;
-    }
-
-    void print()
-    {
-        printf("#");
-        _val->print();
     }
 
     bool isConstant()
@@ -187,24 +166,20 @@ public:
     {
         _val = foldConstants(_val);
     }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
 
 class DataTypeExpr : public Expr
 {
-protected:
+public:
     DataType _val;
 
-public:
     virtual ~DataTypeExpr() {}
     DataTypeExpr(DataType val = NoDataType)
     {
         _val = val;
-    }
-
-    void print()
-    {
-        printf("%s",qPrintable(value()));
     }
 
     bool isConstant()
@@ -230,22 +205,20 @@ public:
     }
 
     void fold() {}
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
 
 class BlockExpr : public Expr
 {
-protected:
+public:
     Block _block;
     QList<Expr *> * _lines;
 
-public:
     virtual ~BlockExpr()
     {
-        foreach(Expr * l, *_lines)
-        {
-            delete l;
-        }
+        foreach(Expr * l, *_lines) { delete l; }
         delete _lines;
     }
 
@@ -253,29 +226,6 @@ public:
     {
         _block = block;
         _lines = lines;
-    }
-
-    void print()
-    {
-        QString s;
-        switch (_block)
-        {
-            case NoBlock:  break; ;;
-            case ConBlock: s = "CON"; break; ;;
-            case VarBlock: s = "VAR"; break; ;;
-            case ObjBlock: s = "OBJ"; break; ;;
-            case PubBlock: s = "PUB"; break; ;;
-            case PriBlock: s = "PRI"; break; ;;
-            case DatBlock: s = "DAT"; break; ;;
-            case AsmBlock: s = "ASM"; break; ;;
-        }
-        printf("%s\n",qPrintable(s));
-
-        foreach(Expr * l, *_lines)
-        {
-            l->print();
-        }
-
     }
 
     bool isConstant()
@@ -301,18 +251,19 @@ public:
             l->fold();
         }
     }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
 
 class DatLineExpr : public Expr
 {
-protected:
+public:
     IdentExpr * _symbol;
     DataTypeExpr * _align;
 
     QList<Expr *> * _items;
 
-public:
     virtual ~DatLineExpr()
     {
         delete _symbol;
@@ -332,22 +283,6 @@ public:
         _symbol = (IdentExpr *) symbol;
         _align = (DataTypeExpr *) align;
         _items = items;
-    }
-
-    void print()
-    {
-        if (!(_symbol->ident().isEmpty()))
-            printf("\n%s\n", qPrintable(_symbol->ident()));
-
-        printf("%-8s", qPrintable(_align->ident()));
-
-        for (int i = 0; i < _items->size(); i++)
-        {
-            (*_items)[i]->print();
-            if (i < _items->size()-1)
-                printf(", ");
-        }
-        printf("\n");
     }
 
     bool isConstant()
@@ -373,17 +308,18 @@ public:
             l->fold();
         }
     }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
 
 class DatItemExpr : public Expr
 {
-protected:
+public:
     DataTypeExpr * _size;
     Expr * _data;
     Expr * _count;
 
-public:
     virtual ~DatItemExpr()
     {
         delete _size;
@@ -396,23 +332,6 @@ public:
         _size = (DataTypeExpr *) size;
         _data = (Expr *) data;
         _count = (Expr *) count;
-    }
-
-    void print()
-    {
-        if (!(_size->ident().isEmpty()))
-        {
-            _size->print();
-            printf(" ");
-        }
-
-        _data->print();
-
-        if (_count->value())
-        {
-            printf(" ");
-            _count->print();
-        }
     }
 
     bool isConstant()
@@ -434,17 +353,18 @@ public:
         _data = foldConstants(_data);
         _count = foldConstants(_count);
     }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
 
 class UnaryExpr : public Expr
 {
-protected:
+public:
     Expr * _val;
     QString _op;
     bool _post;
 
-public:
     virtual ~UnaryExpr()
     {
         delete _val;
@@ -462,20 +382,6 @@ public:
         _val = val;
         _op = op;
         _post = false;
-    }
-
-    void print()
-    {
-        if (_post)
-        {
-            _val->print();
-            printf("%s", qPrintable(_op));
-        }
-        else
-        {
-            printf("%s", qPrintable(_op));
-            _val->print();
-        }
     }
 
     bool isConstant()
@@ -514,6 +420,8 @@ public:
     {
         _val = foldConstants(_val);
     }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
 
@@ -521,12 +429,11 @@ public:
 
 class BinaryExpr : public Expr
 {
-protected:
+public:
     Expr * _left;
     QString _op;
     Expr * _right;
 
-public:
     virtual ~BinaryExpr()
     {
         delete _left;
@@ -537,13 +444,6 @@ public:
         _left = left;
         _op = op;
         _right = right;
-    }
-
-    void print()
-    {
-        _left->print();
-        printf(" %s ", qPrintable(_op));
-        _right->print();
     }
 
     bool isConstant()
@@ -613,17 +513,59 @@ public:
         _left = foldConstants(_left);
         _right = foldConstants(_right);
     }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
+
+
+
+class ConAssignExpr : public Expr
+{
+public:
+    IdentExpr * _ident;
+    Expr * expr;
+
+    virtual ~ConAssignExpr()
+    {
+        delete expr;
+    }
+
+    ConAssignExpr(Expr * ident, Expr * expr)
+    {
+        _ident = (IdentExpr *) ident;
+        this->expr = expr;
+    }
+
+    quint32 value()
+    {
+        if (isConstant())
+            return expr->value();
+        else
+            return 0;
+    }
+
+    bool isConstant()
+    {
+        return expr->isConstant();
+    }
+
+    void fold()
+    {
+        expr = foldConstants(expr);
+    }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
+};
+
 
 
 class WrapExpr : public Expr
 {
-protected:
+public:
     QString _left;
     Expr * _val;
     QString _right;
 
-public:
     virtual ~WrapExpr()
     {
         delete _val;
@@ -635,16 +577,9 @@ public:
         _right = right;
     }
 
-    void print()
-    {
-        printf("%s", qPrintable(_left));
-        _val->print();
-        printf("%s", qPrintable(_right));
-    }
-
     bool isConstant()
     {
-        return _val->isConstant();
+        return false; //_val->isConstant();
     }
 
     quint32 value()
@@ -657,5 +592,100 @@ public:
     {
         _val = foldConstants(_val);
     }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
 };
 
+
+
+class ObjectExpr : public Expr
+{
+public:
+    QString name;
+    QList<Expr *> * _blocks;
+
+    virtual ~ObjectExpr()
+    {
+        foreach(Expr * b, *_blocks) { delete b; }
+        delete _blocks;
+    }
+
+    ObjectExpr(QString name, QList<Expr *> * blocks)
+    {
+        this->name = name;
+        _blocks = blocks;
+    }
+
+    bool isConstant()
+    {
+        return false;
+    }
+
+    quint32 value()
+    {
+        return 0;
+    }
+
+    void fold()
+    {
+        foreach(Expr * b, *_blocks) { b->fold(); }
+    }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
+};
+
+
+/*class ObjectExpr : public Expr
+ *
+void deleteHash(QHash<QString, Expr *> & hash);
+{
+public:
+    QString name;
+
+    QHash<QString, Expr *> objects;
+    QHash<QString, Expr *> constants;
+    QHash<QString, Expr *> variables;
+    QHash<QString, Expr *> data;
+
+    QList<Expr *> pubfunctions;
+    QList<Expr *> prifunctions;
+
+    virtual ~ObjectExpr()
+    {
+        deleteHash(objects);
+        deleteHash(constants);
+        deleteHash(variables);
+        deleteHash(data);
+
+        foreach(Expr * i, pubfunctions) delete i;
+        foreach(Expr * i, prifunctions) delete i;
+    }
+
+    ObjectExpr(QString name)
+    {
+        this->name = name;
+    }
+
+    bool isConstant()
+    {
+        return false;
+    }
+
+    quint32 value()
+    {
+        return 0;
+    }
+
+
+    void fold()
+    {
+        foreach(Expr * i, constants)    i->fold();
+        foreach(Expr * i, data)         i->fold();
+        foreach(Expr * i, pubfunctions) i->fold();
+        foreach(Expr * i, prifunctions) i->fold();
+    }
+
+    void accept(AbstractVisitor & visitor) override { visitor.visit(*this); }
+};
+
+*/

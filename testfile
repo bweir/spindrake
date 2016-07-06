@@ -1,34 +1,15 @@
-OBJ
-
-    nice : "mmoofen"
-
 CON
-    #1, d
-    CHICKEN = 24524
-    BACON = 2423
-    CATS = $013433af
-    DOGS = %%10123
-    PIGS = %1011100
 
-    #2343, arf, noof, meef, beef, food
-
-    bacon = 4*(3 + 4) / 123  // 33
-
-    #3 + 5 >> 434 + @fdsi + -arfnar[243], asd233,  df
-
-    x = 5 == 3432
-
-    x = 3 = 234
-
-VAR
-    
-    byte chicken
-    byte chicken[0]
-    word noofoe
-    long neeee
+    arf = 3243 + 23423 - 343 + x
+    chickenbacon = 454
 
 DAT
 
+
+
+
+
 chicken
-byte    -1, 12 >< 4, word 3 + 5 * 343 / 1, 2 + 2 [34-4] , 600/3 + 2 - (9*300), x + 3423, x*3 + 2*19
+ byte    -1, 12 >< 4, word 3+5 * 343 / 1, 2 + 2 [34-4] , 600/3 + 2 - (9*300), x + 3423, x*3 + 2*19
+   byte    @asd
 

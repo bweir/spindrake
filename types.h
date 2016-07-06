@@ -6,6 +6,7 @@
 #include <QString>
 #include <QByteArray>
 #include <QDebug>
+#include <QHash>
 #include <stdio.h>
 
 class Expr;
@@ -20,6 +21,8 @@ class DatItemExpr;
 class UnaryExpr;
 class BinaryExpr;
 class WrapExpr;
+class ObjectExpr;
+class ConAssignExpr;
 
 enum DataType {
     NoDataType,

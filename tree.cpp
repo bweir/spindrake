@@ -17,3 +17,12 @@ Expr * foldConstants(Expr * exp)
         return exp;
     }
 }
+
+void deleteHash(QHash<QString, Expr *> & hash)
+{
+    foreach (QString i, hash.keys())
+    {
+        delete hash[i];
+    }
+}
+
